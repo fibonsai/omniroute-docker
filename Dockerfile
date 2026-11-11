@@ -96,5 +96,3 @@ ENV NODE_ENV=production \
     INITIAL_PASSWORD=q1w2e3
 
 EXPOSE 20128 20129
-
-ENTRYPOINT ["omniroute"]
