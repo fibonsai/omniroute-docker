@@ -258,16 +258,18 @@ Destination provider keys must already be present in OmniRoute's system environm
 
 Use the profile at `openshell/omniroute.yaml`. The endpoint host must be the address the sandbox uses to reach OmniRoute. `host.openshell.internal` is the documented host gateway for a service running on the OpenShell host; if OmniRoute runs elsewhere (or on another container network), replace `host.openshell.internal` with that reachable hostname or IP.
 
-The profile enforces strict rules:
-- The sandbox sees only `OMNIROUTE_API_KEY` (an opaque placeholder), never upstream provider keys.
-- `path: /v1/**` limits the sandbox to OmniRoute's OpenAI-compatible API; the dashboard and any other host are unreachable.
-- `enforcement: enforce` blocks any request outside the allowed endpoint.
-- `binaries` allowlists only `opencode`, `node`, and `curl` from using the endpoint.
+The profile enforces strict credential-to-endpoint binding:
+
+- **Sandbox sees only `OMNIROUTE_API_KEY`.** This is an opaque placeholder for OmniRoute itself. Upstream `{PROVIDER}_API_KEY` values (`NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `JINA_AI_API_KEY`/`JINA_API_KEY`, and any other `*_API_KEY`) are declared exclusively in OmniRoute's system environment at container startup -- they never enter the sandbox.
+- **Each provider key is used only by OmniRoute for its intended endpoint.** OmniRoute reads `{PROVIDER}_API_KEY` on the host and routes to the correct provider (for example `OPENROUTER_API_KEY` → `openrouter.ai`). The sandbox cannot call `openrouter.ai`, `api.openai.com`, or any other provider endpoint directly, so a provider key cannot be exfiltrated or used against the wrong endpoint.
+- **`path: /v1/**`** limits the sandbox to OmniRoute's OpenAI-compatible API; the dashboard and any other host are unreachable.
+- **`enforcement: enforce`** blocks any request outside the allowed endpoint.
+- **`binaries` allowlist** restricts which processes may use the endpoint to `opencode`, `node`, and `curl`.
 
 ```yaml
 id: omniroute
 display_name: OmniRoute
-description: Self-hosted OmniRoute OpenAI-compatible gateway
+description: Self-hosted OmniRoute OpenAI-compatible gateway with system-env provider keys
 category: inference
 inference_capable: true
 

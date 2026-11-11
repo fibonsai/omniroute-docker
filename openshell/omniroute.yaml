@@ -1,11 +1,20 @@
 id: omniroute
 display_name: OmniRoute
-description: Self-hosted OmniRoute OpenAI-compatible gateway
+description: Self-hosted OmniRoute OpenAI-compatible gateway with system-env provider keys
 category: inference
 inference_capable: true
 
-# The sandbox agent receives only this opaque placeholder credential.
-# It is the key to reach OmniRoute itself, never an upstream provider key.
+# ---------------------------------------------------------------------------
+# Credential boundary
+# ---------------------------------------------------------------------------
+# The sandbox agent receives ONLY this opaque placeholder credential. It is the
+# key to reach OmniRoute itself -- never an upstream provider key.
+#
+# Upstream provider API keys ({PROVIDER}_API_KEY) are declared exclusively in
+# OmniRoute's system environment at container startup (e.g. NVIDIA_API_KEY,
+# OPENROUTER_API_KEY, ...). They are read by OmniRoute on the host and used to
+# call the correct provider endpoint. The sandbox can never read them, so no
+# provider key can be exfiltrated or used against the wrong endpoint.
 credentials:
   - name: api_key
     description: OmniRoute API key (sandbox-facing, opaque placeholder)
@@ -17,9 +26,15 @@ credentials:
 discovery:
   credentials: [api_key]
 
-# Strict endpoint rules: the sandbox may only reach OmniRoute's OpenAI-compatible
-# API. The dashboard and any other host are unreachable from the sandbox, so no
-# credential (including OMNIROUTE_API_KEY) can be exfiltrated elsewhere.
+# ---------------------------------------------------------------------------
+# Endpoint rules
+# ---------------------------------------------------------------------------
+# The sandbox may reach only OmniRoute's OpenAI-compatible API. The dashboard
+# and every upstream provider endpoint (openrouter.ai, api.openai.com, ...) are
+# unreachable from the sandbox, which guarantees that a {PROVIDER}_API_KEY is
+# used only by OmniRoute for its intended provider and never by the agent.
+#
+# enforcement: enforce blocks any request that falls outside this endpoint.
 endpoints:
   - host: host.openshell.internal
     port: 20128
@@ -28,8 +43,12 @@ endpoints:
     access: read-write
     enforcement: enforce
 
-# Only these binaries may use the endpoint. Everything else in the sandbox is
-# blocked from reaching OmniRoute (and therefore from using any credential).
+# ---------------------------------------------------------------------------
+# Binary allowlist
+# ---------------------------------------------------------------------------
+# Only these processes may use the OmniRoute endpoint. Everything else in the
+# sandbox is blocked from reaching OmniRoute -- and therefore blocked from
+# using OMNIROUTE_API_KEY or any provider key.
 binaries:
   - /usr/local/bin/opencode
   - /usr/local/bin/node
