@@ -450,6 +450,48 @@ openshell sandbox exec -n omniroute-agent --workdir /workspace -- \
   opencode run --model omniroute/auto "Summarize the files in this workspace."
 ```
 
+### Run Claude Code through OmniRoute
+
+Claude Code can point at any OpenAI-compatible endpoint via `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`. Run it inside an `omniroute-agent` sandbox so it reaches OmniRoute (and therefore every connected provider) without holding any upstream `{PROVIDER}_API_KEY`:
+
+```bash
+openshell sandbox create \
+  --name claude-code-agent \
+  --from ghcr.io/anthropics/claude-code:latest \
+  --provider omniroute-agent \
+  --env OMNIROUTE_API_KEY="${OMNIROUTE_API_KEY}" \
+  --env ANTHROPIC_BASE_URL=http://host.openshell.internal:20128/v1 \
+  --env ANTHROPIC_AUTH_TOKEN="${OMNIROUTE_API_KEY}" \
+  --detach \
+  -- sh -c 'sleep 86400'
+
+openshell sandbox exec -n claude-code-agent --workdir /workspace -- \
+  claude "Summarize the files in this workspace."
+```
+
+Claude Code authenticates to OmniRoute with `OMNIROUTE_API_KEY` and OmniRoute routes to the configured provider (e.g. NVIDIA NIM, OpenAI, Gemini). The Claude Code sandbox never sees `NVIDIA_API_KEY`, `GEMINI_API_KEY`, or any other upstream key.
+
+### Run Hermes Gateway through OmniRoute
+
+Hermes Agent (NousResearch) runs inside an OpenShell sandbox via the OpenShell gateway (`hermesclaw`). Point Hermes Gateway at OmniRoute's OpenAI-compatible endpoint so all model traffic is proxied through OmniRoute:
+
+```bash
+openshell sandbox create \
+  --name hermes-agent \
+  --from local/hermes:latest \
+  --provider omniroute-agent \
+  --env OMNIROUTE_API_KEY="${OMNIROUTE_API_KEY}" \
+  --env HERMES_GATEWAY_URL=http://host.openshell.internal:20128/v1 \
+  --env HERMES_API_KEY="${OMNIROUTE_API_KEY}" \
+  --detach \
+  -- sh -c 'sleep 86400'
+
+openshell sandbox exec -n hermes-agent --workdir /workspace -- \
+  hermesclaw chat "Summarize the files in this workspace."
+```
+
+The Hermes sandbox holds only `OMNIROUTE_API_KEY`. Hermes Gateway sends requests to OmniRoute, which forwards to the destination provider using the `{PROVIDER}_API_KEY` kept in OmniRoute's system environment — never exposed to the Hermes sandbox.
+
 To clean up:
 
 ```bash
