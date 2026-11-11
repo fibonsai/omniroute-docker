@@ -473,12 +473,12 @@ Claude Code authenticates to OmniRoute with `OMNIROUTE_API_KEY` and OmniRoute ro
 
 ### Run Hermes Gateway through OmniRoute
 
-Hermes Agent (NousResearch) runs inside an OpenShell sandbox via the OpenShell gateway (`hermesclaw`). Point Hermes Gateway at OmniRoute's OpenAI-compatible endpoint so all model traffic is proxied through OmniRoute:
+Hermes Agent (NousResearch) runs inside an OpenShell sandbox via the OpenShell gateway (`hermesclaw`, from the `hermesclaw` project — there is no official NousResearch/NVIDIA Docker image; build your own image with `hermesclaw` installed). Point Hermes Gateway at OmniRoute's OpenAI-compatible endpoint so all model traffic is proxied through OmniRoute:
 
 ```bash
 openshell sandbox create \
   --name hermes-agent \
-  --from local/hermes:latest \
+  --from <your-hermes-image> \
   --provider omniroute-agent \
   --env OMNIROUTE_API_KEY="${OMNIROUTE_API_KEY}" \
   --env HERMES_GATEWAY_URL=http://host.openshell.internal:20128/v1 \
