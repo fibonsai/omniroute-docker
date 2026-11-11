@@ -20,6 +20,9 @@ ARG OMNIROUTE_VERSION=latest
 # OS keychain support. Set to true for the full feature set.
 ARG INSTALL_OPTIONAL_DEPS=false
 
+# Remove translated documentation from the runtime tree; English docs stay.
+ARG REMOVE_TRANSLATED_DOCS=true
+
 ENV NPM_CONFIG_CACHE=/tmp/npm-cache \
     NPM_CONFIG_AUDIT=false \
     NPM_CONFIG_FUND=false \
@@ -61,6 +64,12 @@ RUN set -eux; \
     DATA_DIR=/tmp/omniroute-smoke HOME=/tmp \
       node /opt/omniroute/node_modules/omniroute/bin/omniroute.mjs providers validate; \
     rm -rf /tmp/omniroute-smoke
+
+# English documentation is compiled into the Next.js app. Removing the
+# translation tree makes non-English docs fall back to English.
+RUN if [ "$REMOVE_TRANSLATED_DOCS" = "true" ]; then \
+      rm -rf /opt/omniroute/node_modules/omniroute/dist/docs/i18n; \
+    fi
 
 # ---------------------------------------------------------------------------
 # Stage 2 - runtime image

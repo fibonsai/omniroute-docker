@@ -174,12 +174,13 @@ The fake keys are compatibility placeholders, not credentials. In OmniRoute 3.8+
 
 ## Build options
 
-The build accepts two arguments:
+The build accepts three arguments:
 
 | Argument | Default | Description |
 | --- | --- | --- |
 | `OMNIROUTE_VERSION` | `latest` | npm version or tag to install. Pin it for reproducible deployments, e.g. `3.8.53`. |
 | `INSTALL_OPTIONAL_DEPS` | `false` | Install OmniRoute's optional dependencies (about 1 GB extra). Set to `true` for the full feature set. |
+| `REMOVE_TRANSLATED_DOCS` | `true` | Remove the non-English documentation tree. English docs are built into the app and remain available; other locales fall back to English. Set to `false` to keep all translations. |
 
 ```bash
 # Reproducible, lean build
@@ -191,6 +192,11 @@ docker build \
 docker build \
   --build-arg INSTALL_OPTIONAL_DEPS=true \
   -t omniroute-docker:full .
+
+# Keep all translated documentation
+docker build \
+  --build-arg REMOVE_TRANSLATED_DOCS=false \
+  -t omniroute-docker:translated .
 ```
 
 ## Image size and optional dependencies
@@ -198,8 +204,9 @@ docker build \
 The largest size wins come from installing into a disposable build stage and omitting optional dependencies:
 
 - The runtime image contains only the installed application tree. The builder's `python3`/`make`/`g++` toolchain and the npm download cache stay in the disposable stage.
-- The lean install tree is about 2.4 GB. Enabling `INSTALL_OPTIONAL_DEPS=true` adds roughly 1 GB of native and AI packages.
-- On the same Podman host, the original single-stage `npm install -g` Dockerfile produced a **4.51 GB** image; this multi-stage lean build is **2.39 GB**, about **47% smaller**. OmniRoute itself is still the bulk of the runtime tree: `dist` is about 969 MB, including about 381 MB of translated documentation assets.
+- The lean install tree is about 2.0 GB. Enabling `INSTALL_OPTIONAL_DEPS=true` adds roughly 1 GB of native and AI packages.
+- On the same Podman host, the original single-stage `npm install -g` Dockerfile produced a **4.51 GB** image; this multi-stage lean build is **2.00 GB**, about **56% smaller**.
+- OmniRoute's own `dist` tree is about 588 MB after removing translated documentation; it was about 969 MB with all translations. The removed `dist/docs/i18n` tree was about 381 MB. English docs are compiled into the app, so `/docs` still works; other locales fall back to English.
 - The native SQLite driver (`better-sqlite3`) is **kept** in lean mode. It is core database functionality, not an optional extra, and ships a musl prebuild for Alpine.
 
 Lean mode omits these optional packages:
@@ -214,6 +221,8 @@ Lean mode omits these optional packages:
 
 The server boots and the dashboard works without them; only the features listed above are unavailable. Build with `--build-arg INSTALL_OPTIONAL_DEPS=true` to restore them.
 
+Translated documentation is removed separately by `REMOVE_TRANSLATED_DOCS=true` (the default). To keep every locale, rebuild with `--build-arg REMOVE_TRANSLATED_DOCS=false`.
+
 ## Docker Compose
 
 ```yaml
@@ -224,6 +233,7 @@ services:
       args:
         OMNIROUTE_VERSION: latest
         INSTALL_OPTIONAL_DEPS: "false"
+        REMOVE_TRANSLATED_DOCS: "true"
     image: omniroute-docker
     container_name: omniroute
     restart: unless-stopped
@@ -460,9 +470,10 @@ The `Dockerfile` performs the following steps:
 2. Installs `omniroute` into `/opt/omniroute` with `--omit=optional` by default. A local (non-global) install is used because npm ignores `--omit=optional` for `npm install -g`.
 3. Re-adds `better-sqlite3` at the version OmniRoute declares, so the image keeps the native SQLite driver in lean mode.
 4. Runs the CLI version check and `omniroute providers validate` as a build-time smoke check. These run in the builder and do not leave state in the final image.
-5. **Runtime stage** — starts a fresh `node:lts-alpine`, installs only `ca-certificates`, `curl`, `libc6-compat`, and `tzdata`, then copies `/opt/omniroute` from the builder.
-6. Creates the `omniroute` and `omniroute-reset-password` symlinks, prepares `/workspace` and `/home/node/.omniroute` with `node:node` ownership, switches to the non-root `node` user, and declares the ports and entrypoint.
-7. With no arguments the entrypoint launches `omniroute serve` (the default command), which starts the dashboard and the `/v1` proxy.
+5. Removes the non-English documentation tree (`dist/docs/i18n`) in the builder before the runtime copy, unless `REMOVE_TRANSLATED_DOCS=false`. English docs are compiled into the Next.js app, so `/docs` continues to work and other locales fall back to English.
+6. **Runtime stage** — starts a fresh `node:lts-alpine`, installs only `ca-certificates`, `curl`, `libc6-compat`, and `tzdata`, then copies `/opt/omniroute` from the builder.
+7. Creates the `omniroute` and `omniroute-reset-password` symlinks, prepares `/workspace` and `/home/node/.omniroute` with `node:node` ownership, switches to the non-root `node` user, and declares the ports and entrypoint.
+8. With no arguments the entrypoint launches `omniroute serve` (the default command), which starts the dashboard and the `/v1` proxy.
 
 Builds are unpinned by default (`OMNIROUTE_VERSION=latest`). Pin the version with `--build-arg OMNIROUTE_VERSION=<version>` for reproducible deployments.
 
