@@ -1,0 +1,37 @@
+id: omniroute
+display_name: OmniRoute
+description: Self-hosted OmniRoute OpenAI-compatible gateway
+category: inference
+inference_capable: true
+
+# The sandbox agent receives only this opaque placeholder credential.
+# It is the key to reach OmniRoute itself, never an upstream provider key.
+credentials:
+  - name: api_key
+    description: OmniRoute API key (sandbox-facing, opaque placeholder)
+    env_vars: [OMNIROUTE_API_KEY]
+    required: true
+    auth_style: bearer
+    header_name: authorization
+
+discovery:
+  credentials: [api_key]
+
+# Strict endpoint rules: the sandbox may only reach OmniRoute's OpenAI-compatible
+# API. The dashboard and any other host are unreachable from the sandbox, so no
+# credential (including OMNIROUTE_API_KEY) can be exfiltrated elsewhere.
+endpoints:
+  - host: host.openshell.internal
+    port: 20128
+    path: /v1/**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+
+# Only these binaries may use the endpoint. Everything else in the sandbox is
+# blocked from reaching OmniRoute (and therefore from using any credential).
+binaries:
+  - /usr/local/bin/opencode
+  - /usr/local/bin/node
+  - /usr/bin/curl
+  - /usr/local/bin/curl

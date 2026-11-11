@@ -256,7 +256,13 @@ Destination provider keys must already be present in OmniRoute's system environm
 
 ### Create the OpenShell provider profile
 
-Save this as `omniroute.yaml`. The endpoint host must be the address the sandbox uses to reach OmniRoute. `host.openshell.internal` is the documented host gateway for a service running on the OpenShell host; if OmniRoute runs elsewhere (or on another container network), replace it with that reachable hostname or IP.
+Use the profile at `openshell/omniroute.yaml`. The endpoint host must be the address the sandbox uses to reach OmniRoute. `host.openshell.internal` is the documented host gateway for a service running on the OpenShell host; if OmniRoute runs elsewhere (or on another container network), replace `host.openshell.internal` with that reachable hostname or IP.
+
+The profile enforces strict rules:
+- The sandbox sees only `OMNIROUTE_API_KEY` (an opaque placeholder), never upstream provider keys.
+- `path: /v1/**` limits the sandbox to OmniRoute's OpenAI-compatible API; the dashboard and any other host are unreachable.
+- `enforcement: enforce` blocks any request outside the allowed endpoint.
+- `binaries` allowlists only `opencode`, `node`, and `curl` from using the endpoint.
 
 ```yaml
 id: omniroute
@@ -267,7 +273,7 @@ inference_capable: true
 
 credentials:
   - name: api_key
-    description: OmniRoute API key
+    description: OmniRoute API key (sandbox-facing, opaque placeholder)
     env_vars: [OMNIROUTE_API_KEY]
     required: true
     auth_style: bearer
