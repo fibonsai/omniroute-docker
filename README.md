@@ -36,7 +36,7 @@ docker run -d \
 
 Then open <http://localhost:20128> and log in with `INITIAL_PASSWORD`.
 
-NVIDIA, DeepSeek, Gemini, and Jina keys are read directly from the environment as provider fallbacks. Most other providers must be added as connections in the dashboard or with the CLI; see [Provider credentials](#provider-credentials).
+NVIDIA, DeepSeek, Gemini, and Jina keys are read directly from the environment as provider fallbacks. Declare them at runtime via `docker run -e ...` or `--env-file`; see [Provider credentials](#provider-credentials).
 
 `INITIAL_PASSWORD` is only applied while no dashboard password is stored. Changing the environment variable after the first boot does **not** change an existing password — use [`omniroute reset-password`](#reset-the-dashboard-password) instead.
 
@@ -56,93 +56,62 @@ curl http://localhost:20128/v1/chat/completions \
   }'
 ```
 
-Create OmniRoute client keys in the dashboard under **Endpoints**. The `omniroute keys` CLI manages upstream provider keys and existing client keys (revoke, rotate, usage), but not key creation. The `auto` model lets OmniRoute pick among your connected providers; `auto/coding`, `auto/cheap`, `auto/fast`, and other variants bias the selection.
-
-Provider credentials are managed inside OmniRoute. See [Provider credentials](#provider-credentials) for the dashboard, CLI, and bulk-import examples.
+Create OmniRoute client keys in the dashboard under **Endpoints**. Provider API keys are declared via system environment at runtime (see [Provider credentials](#provider-credentials)); they must not be stored in OmniRoute's SQLite database. The `auto` model lets OmniRoute pick among your connected providers; `auto/coding`, `auto/cheap`, `auto/fast`, and other variants bias the selection.
 
 ## Provider credentials
 
-OmniRoute 3.8.53 exposes 375 provider IDs. Add the destinations you use in the dashboard under **Providers → Add API key**, or from the CLI. The CLI can read the key from stdin so it does not appear in the container's process arguments:
+Declare upstream provider API keys using system environment variables, passed to the container at runtime (do not bake them into the image). OmniRoute reads them as provider fallbacks:
+
+- `NVIDIA_API_KEY`
+- `DEEPSEEK_API_KEY`
+- `GEMINI_API_KEY` / `GOOGLE_API_KEY`
+- `JINA_AI_API_KEY` / `JINA_API_KEY`
+
+Example:
 
 ```bash
-printf '%s' "$OPENAI_API_KEY" | docker exec -i omniroute \
-  omniroute providers add openai --credential-stdin --yes
+docker run -d \
+  --name omniroute \
+  --restart unless-stopped \
+  -p 20128:20128 \
+  -e INITIAL_PASSWORD='change-this-password' \
+  -e REQUIRE_API_KEY='true' \
+  -e NVIDIA_API_KEY="${NVIDIA_API_KEY}" \
+  -e DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
+  -e GEMINI_API_KEY="${GEMINI_API_KEY}" \
+  -e JINA_AI_API_KEY="${JINA_AI_API_KEY}" \
+  -v omniroute-data:/home/node/.omniroute \
+  omniroute-docker
 ```
 
-To add every destination key that is present in your shell, use the loop below. The left side is the OmniRoute provider ID; the right side is the environment variable in your shell. The loop skips variables that are not set.
+Or with an `--env-file`:
 
 ```bash
-while IFS=: read -r provider env_var; do
-  key="${!env_var:-}"
-  [ -n "$key" ] || continue
-  printf 'Adding %s\n' "$provider"
-  printf '%s' "$key" | docker exec -i omniroute \
-    omniroute providers add "$provider" --credential-stdin --yes \
-    || printf 'Could not add %s; use the dashboard for provider-specific setup.\n' "$provider"
-done <<'PROVIDERS'
-openai:OPENAI_API_KEY
-anthropic:ANTHROPIC_API_KEY
-gemini:GEMINI_API_KEY
-nvidia:NVIDIA_API_KEY
-deepseek:DEEPSEEK_API_KEY
-jina-ai:JINA_AI_API_KEY
-openrouter:OPENROUTER_API_KEY
-groq:GROQ_API_KEY
-mistral:MISTRAL_API_KEY
-xai:XAI_API_KEY
-together:TOGETHER_API_KEY
-fireworks:FIREWORKS_API_KEY
-cohere:COHERE_API_KEY
-perplexity:PERPLEXITY_API_KEY
-cerebras:CEREBRAS_API_KEY
-deepinfra:DEEPINFRA_API_KEY
-siliconflow:SILICONFLOW_API_KEY
-novita:NOVITA_API_KEY
-PROVIDERS
+docker run -d \
+  --name omniroute \
+  --restart unless-stopped \
+  -p 20128:20128 \
+  -e INITIAL_PASSWORD='change-this-password' \
+  -e REQUIRE_API_KEY='true' \
+  --env-file provider.env \
+  -v omniroute-data:/home/node/.omniroute \
+  omniroute-docker
 ```
 
-| Destination API | Provider ID | Usual key variable |
-| --- | --- | --- |
-| OpenAI | `openai` | `OPENAI_API_KEY` |
-| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` |
-| NVIDIA NIM | `nvidia` | `NVIDIA_API_KEY` |
-| Google Gemini | `gemini` | `GEMINI_API_KEY` |
-| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` |
-| Jina AI | `jina-ai` | `JINA_AI_API_KEY` |
-| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` |
-| Groq | `groq` | `GROQ_API_KEY` |
-| Mistral | `mistral` | `MISTRAL_API_KEY` |
-| xAI | `xai` | `XAI_API_KEY` |
-| Together AI | `together` | `TOGETHER_API_KEY` |
-| Fireworks | `fireworks` | `FIREWORKS_API_KEY` |
-| Cohere | `cohere` | `COHERE_API_KEY` |
-| Perplexity | `perplexity` | `PERPLEXITY_API_KEY` |
-| Cerebras | `cerebras` | `CEREBRAS_API_KEY` |
-| DeepInfra | `deepinfra` | `DEEPINFRA_API_KEY` |
-| SiliconFlow | `siliconflow` | `SILICONFLOW_API_KEY` |
-| Novita | `novita` | `NOVITA_API_KEY` |
+Where `provider.env` contains:
 
-For an unlisted provider, use its ID from the catalog and any environment variable name you like; the CLI reads the key from stdin, so the variable name is only a convenience. The provider IDs and names are not always the same as the environment variable prefix. List the full catalog, or search it:
-
-```bash
-docker exec omniroute omniroute providers available
-docker exec omniroute omniroute providers available --search nvidia
+```
+NVIDIA_API_KEY=sk-or-...
+DEEPSEEK_API_KEY=sk-...
+GEMINI_API_KEY=...
+JINA_AI_API_KEY=...
 ```
 
-Providers that need an extra endpoint, a JSON settings blob, or an OAuth flow (for example `azure-openai`, `bedrock`, `vertex`, and `github`) are easier to configure in the dashboard. `omniroute providers add --help` shows the `--provider-specific-data` and `--oauth` options.
+For any other provider (not in the fallback list above), set its `*_API_KEY` variable the same way at runtime; OmniRoute reads provider keys from its environment. Do not store provider keys in OmniRoute's SQLite database — the database must not become a credential store. The sandbox agent (OpenShell) only ever sees `OMNIROUTE_API_KEY`, never upstream provider keys.
 
-`setup --add-provider` is the offline equivalent. It writes directly to the data directory and is useful when the server is not running:
+Provider-specific variables for the other supported providers are documented in OmniRoute's [environment reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/ENVIRONMENT.md).
 
-```bash
-docker exec -it omniroute omniroute setup --add-provider \
-  --provider nvidia \
-  --api-key "$NVIDIA_API_KEY" \
-  --non-interactive
-```
-
-This offline form passes the key as a command-line argument. Prefer the stdin form above when other users can inspect process arguments on the host.
-
-A few variables are also read directly from OmniRoute's environment as fallbacks: `NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, and `JINA_AI_API_KEY`/`JINA_API_KEY`. For predictable routing, add a provider connection with the CLI or dashboard rather than relying on the fallback. The connection is stored in the SQLite database, so the upstream key does not need to stay in the container environment after it is saved.
+A few variables are also read directly from OmniRoute's environment as fallbacks: `NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, and `JINA_AI_API_KEY`/`JINA_API_KEY`. Declare them at runtime via `docker run -e ...` or `--env-file` (see [Provider credentials](#provider-credentials)).
 
 ## Configuration
 
@@ -161,7 +130,7 @@ The image is configured entirely through environment variables. The table below 
 | `REQUIRE_API_KEY` | unset | Set to `true` to require an OmniRoute API key on `/v1/*`. Strongly recommended when publishing the port. |
 | `OMNIROUTE_SERVER_HOST` | `0.0.0.0` | Bind address for the server. Use `127.0.0.1` to keep it loopback-only. |
 
-A few provider variables are read directly from OmniRoute's environment as fallbacks: `NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, and `JINA_AI_API_KEY`/`JINA_API_KEY`. These are **not** baked into the image — set them at runtime via `docker run -e ...` (or an `--env-file`) when you want OmniRoute to use them. For predictable routing, add a provider connection with the CLI or dashboard rather than relying on the fallback; the connection is stored in the SQLite database, so the upstream key does not need to stay in the container environment after it is saved.
+A few provider variables are read directly from OmniRoute's environment as fallbacks: `NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, and `JINA_AI_API_KEY`/`JINA_API_KEY`. Declare them at runtime via `docker run -e ...` (or an `--env-file`) when you want OmniRoute to use them (see [Provider credentials](#provider-credentials)).
 
 Provider-specific variables for the other supported providers are documented in OmniRoute's [environment reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/ENVIRONMENT.md).
 
@@ -283,17 +252,7 @@ Open <http://localhost:20128>, log in, and create an API key under **Endpoints**
 export OMNIROUTE_API_KEY='omni-...'
 ```
 
-Add the destination providers you need (see [Provider credentials](#provider-credentials)). For example, to add NVIDIA NIM, DeepSeek, Gemini, and OpenRouter:
-
-```bash
-for pair in nvidia:NVIDIA_API_KEY deepseek:DEEPSEEK_API_KEY gemini:GEMINI_API_KEY openrouter:OPENROUTER_API_KEY; do
-  provider=${pair%%:*}
-  var=${pair#*:}
-  [ -n "${!var:-}" ] || continue
-  printf '%s' "${!var}" | docker exec -i omniroute \
-    omniroute providers add "$provider" --credential-stdin --yes
-done
-```
+Destination provider keys must already be present in OmniRoute's system environment (see [Provider credentials](#provider-credentials)) before starting the container; they are read at startup and are not added afterward through the dashboard or CLI.
 
 ### Create the OpenShell provider profile
 
@@ -431,9 +390,9 @@ The sandbox agent never holds upstream provider keys. It only sees `OMNIROUTE_AP
 | Connection refused or timeout to `host.openshell.internal:20128` | OmniRoute is not reachable from the sandbox. Confirm the port is published, the host address is correct for your gateway (host-local, Docker network, or LAN), and the profile declares that host. |
 | `403` or policy denial | Check `openshell policy get <sandbox> --full`; the provider must be attached and its `binaries` must include the calling executable (for example `/usr/local/bin/opencode` or `/usr/bin/curl`). |
 | `401` from OmniRoute | The OmniRoute key is wrong, or `REQUIRE_API_KEY` is enabled without a valid key. Export the correct `OMNIROUTE_API_KEY` and recreate the provider with `--from-existing`. |
-| `429` or upstream provider errors | The selected provider failed or has no key. Check OmniRoute's dashboard and logs, and add the provider connection. |
+| `429` or upstream provider errors | The selected provider failed or has no key. Check OmniRoute's logs and confirm the provider key is set in OmniRoute's system environment at startup (see [Provider credentials](#provider-credentials)). |
 
-> **Why not add every upstream provider to OpenShell?** The sandbox does not call the upstream APIs; it calls OmniRoute. Adding `api.openai.com`, `api.anthropic.com`, and the rest to the sandbox policy would expose their credentials to the agent and bypass OmniRoute's routing, retries, and accounting. Keep one OpenShell provider for OmniRoute and manage the upstreams inside OmniRoute.
+> **Why not add every upstream provider to OpenShell?** The sandbox does not call the upstream APIs; it calls OmniRoute. Adding `api.openai.com`, `api.anthropic.com`, and the rest to the sandbox policy would expose their credentials to the agent and bypass OmniRoute's routing, retries, and accounting. Keep one OpenShell provider for OmniRoute and declare upstream keys through OmniRoute's system environment at startup.
 
 ## Persistence
 
@@ -533,7 +492,7 @@ docker stop omniroute
 ## Security notes
 
 - **Change `INITIAL_PASSWORD`.** The baked-in `q1w2e3` value is a weak placeholder. Use a strong password (8+ characters) and never expose the dashboard to the internet without TLS and a reverse proxy.
-- **The fake provider keys are not credentials.** They are placeholders and will fail against real providers. Supply real keys at runtime via `docker run -e ...` (or an `--env-file`), or add provider connections through the dashboard/CLI.
+- **The fake provider keys are not credentials.** They are placeholders and will fail against real providers. Supply real keys at runtime via `docker run -e ...` (or an `--env-file`); provider keys must not be stored in OmniRoute's database.
 - **Protect `/v1/*`.** OmniRoute is local-first, but this container publishes port `20128` on all interfaces. Set `REQUIRE_API_KEY=true` and create an API key, and/or bind the port to loopback (`-p 127.0.0.1:20128:20128`) so only local clients can spend your provider quota. If you use OpenShell, publish the port on an interface the sandbox can reach and keep `REQUIRE_API_KEY=true`.
 - **Keep secrets out of images.** Do not bake real keys into the `Dockerfile` or commit them to a `.env` file. Use runtime environment variables, `--env-file`, or your orchestrator's secret store.
 - **The container runs as `node` (UID 1000), not root.** Keep the data volume owned by that UID.
