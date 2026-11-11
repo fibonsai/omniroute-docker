@@ -9,7 +9,7 @@ inference_capable: true
 # ---------------------------------------------------------------------------
 # The agent sandbox holds ONLY OMNIROUTE_API_KEY, an opaque placeholder for the
 # OmniRoute gateway. Upstream {PROVIDER}_API_KEY values never enter this sandbox;
-# they are held by the omniroute-all-providers sandbox (OmniRoute daemon) which
+# they are held by the inference-providers sandbox (OmniRoute daemon) which
 # routes each request to the correct provider endpoint.
 credentials:
   - name: api_key

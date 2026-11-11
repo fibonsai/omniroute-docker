@@ -1,4 +1,4 @@
-id: omniroute-all-providers
+id: inference-providers
 display_name: OmniRoute All Providers (sandbox)
 description: OmniRoute daemon inside the sandbox; proxies to every supported provider. Each {PROVIDER}_API_KEY bound to its respective endpoint only.
 category: inference
@@ -8,8 +8,8 @@ inference_capable: true
 # Credentials
 # ---------------------------------------------------------------------------
 # OMNIROUTE_API_KEY is presented by agent sandboxes to reach the OmniRoute
-# daemon running in this sandbox. The omniroute-all-providers sandbox itself
-# holds the {PROVIDER}_API_KEY values (via its container/system environment) and
+# daemon running in this sandbox. The inference-providers sandbox itself holds
+# the {PROVIDER}_API_KEY values (via its container/system environment) and
 # routes each request to the correct provider; the agent never sees them.
 #
 # Each {PROVIDER}_API_KEY below is bound strictly to its own provider endpoint
