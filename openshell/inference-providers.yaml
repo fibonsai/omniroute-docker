@@ -17,15 +17,6 @@ inference_capable: true
 # NVIDIA_API_KEY only NVIDIA endpoints, etc. No provider key can be used against
 # a different provider's endpoint.
 credentials:
-  - name: api_key
-    description: OmniRoute API key (sandbox-facing, opaque placeholder)
-    env_vars:
-      - OMNIROUTE_API_KEY
-    required: true
-    auth_style: bearer
-    header_name: authorization
-    query_param: ""
-
   # Provider keys: each bound strictly to its own endpoint host below.
   - name: openai_api_key
     description: OpenAI API key
@@ -154,9 +145,6 @@ credentials:
     header_name: authorization
     query_param: ""
 
-discovery:
-  credentials: [api_key]
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -168,16 +156,28 @@ discovery:
 # for its intended provider. OmniRoute (trusted daemon in this sandbox) forwards
 # agent requests to the correct provider endpoint.
 endpoints:
-  # --- OmniRoute gateway (sandbox-facing) ---
   - host: host.openshell.internal
     port: 20128
-    path: /v1/**
     protocol: rest
-    access: read-write
-    enforcement: enforce
-    credentials: [api_key]
+    rules:
+    - allow:
+        method: GET
+        path: /login
+    - allow:
+        method: GET
+        path: /v1/**
+  - host: host.docker.internal
+    port: 20128
+    protocol: rest
+    rules:
+    - allow:
+        method: GET
+        path: /login
+    - allow:
+        method: GET
+        path: /v1/**
 
-  # --- Provider endpoints (OmniRoute routes to these) ---
+# --- Provider endpoints (OmniRoute routes to these) ---
   - host: api.openai.com
     port: 443
     path: /**
@@ -330,3 +330,4 @@ endpoints:
 binaries:
   - /usr/local/bin/omniroute
   - /usr/local/bin/node
+  - /usr/bin/curl
