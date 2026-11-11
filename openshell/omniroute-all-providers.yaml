@@ -1,0 +1,332 @@
+id: omniroute-all-providers
+display_name: OmniRoute All Providers (sandbox)
+description: OmniRoute daemon inside the sandbox; proxies to every supported provider. Each {PROVIDER}_API_KEY bound to its respective endpoint only.
+category: inference
+inference_capable: true
+
+# ---------------------------------------------------------------------------
+# Credentials
+# ---------------------------------------------------------------------------
+# OMNIROUTE_API_KEY is presented by agent sandboxes to reach the OmniRoute
+# daemon running in this sandbox. The omniroute-all-providers sandbox itself
+# holds the {PROVIDER}_API_KEY values (via its container/system environment) and
+# routes each request to the correct provider; the agent never sees them.
+#
+# Each {PROVIDER}_API_KEY below is bound strictly to its own provider endpoint
+# (enforcement: enforce), so OPENROUTER_API_KEY only reaches openrouter.ai,
+# NVIDIA_API_KEY only NVIDIA endpoints, etc. No provider key can be used against
+# a different provider's endpoint.
+credentials:
+  - name: api_key
+    description: OmniRoute API key (sandbox-facing, opaque placeholder)
+    env_vars:
+      - OMNIROUTE_API_KEY
+    required: true
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+
+  # Provider keys: each bound strictly to its own endpoint host below.
+  - name: openai_api_key
+    description: OpenAI API key
+    env_vars: [OPENAI_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: anthropic_api_key
+    description: Anthropic API key
+    env_vars: [ANTHROPIC_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: gemini_api_key
+    description: Google Gemini API key
+    env_vars: [GEMINI_API_KEY, GOOGLE_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: deepseek_api_key
+    description: DeepSeek API key
+    env_vars: [DEEPSEEK_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: nvidia_api_key
+    description: NVIDIA NIM API key
+    env_vars: [NVIDIA_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: openrouter_api_key
+    description: OpenRouter API key
+    env_vars: [OPENROUTER_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: groq_api_key
+    description: Groq API key
+    env_vars: [GROQ_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: mistral_api_key
+    description: Mistral API key
+    env_vars: [MISTRAL_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: xai_api_key
+    description: xAI API key
+    env_vars: [XAI_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: together_api_key
+    description: Together AI API key
+    env_vars: [TOGETHER_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: fireworks_api_key
+    description: Fireworks AI API key
+    env_vars: [FIREWORKS_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: cohere_api_key
+    description: Cohere API key
+    env_vars: [COHERE_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: perplexity_api_key
+    description: Perplexity API key
+    env_vars: [PERPLEXITY_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: cerebras_api_key
+    description: Cerebras API key
+    env_vars: [CEREBRAS_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: deepinfra_api_key
+    description: DeepInfra API key
+    env_vars: [DEEPINFRA_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: siliconflow_api_key
+    description: SiliconFlow API key
+    env_vars: [SILICONFLOW_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: novita_api_key
+    description: Novita API key
+    env_vars: [NOVITA_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+  - name: jina_ai_api_key
+    description: Jina AI API key
+    env_vars: [JINA_AI_API_KEY]
+    required: false
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+
+discovery:
+  credentials: [api_key]
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+# OmniRoute gateway inside the sandbox. Agent sandboxes reach only this endpoint
+# via OMNIROUTE_API_KEY.
+#
+# Each provider endpoint is bound to its respective {PROVIDER}_API_KEY with
+# enforcement: enforce. This is the runtime guarantee that each key is used only
+# for its intended provider. OmniRoute (trusted daemon in this sandbox) forwards
+# agent requests to the correct provider endpoint.
+endpoints:
+  # --- OmniRoute gateway (sandbox-facing) ---
+  - host: host.openshell.internal
+    port: 20128
+    path: /v1/**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [api_key]
+
+  # --- Provider endpoints (OmniRoute routes to these) ---
+  - host: api.openai.com
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [openai_api_key]
+
+  - host: api.anthropic.com
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [anthropic_api_key]
+
+  - host: generativelanguage.googleapis.com
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [gemini_api_key]
+
+  - host: api.deepseek.com
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [deepseek_api_key]
+
+  - host: integrate.api.nvidia.com
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [nvidia_api_key]
+
+  - host: openrouter.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [openrouter_api_key]
+
+  - host: api.groq.com
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [groq_api_key]
+
+  - host: api.mistral.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [mistral_api_key]
+
+  - host: api.x.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [xai_api_key]
+
+  - host: api.together.xyz
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [together_api_key]
+
+  - host: api.fireworks.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [fireworks_api_key]
+
+  - host: api.cohere.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [cohere_api_key]
+
+  - host: api.perplexity.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [perplexity_api_key]
+
+  - host: api.cerebras.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [cerebras_api_key]
+
+  - host: api.deepinfra.com
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [deepinfra_api_key]
+
+  - host: api.siliconflow.cn
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [siliconflow_api_key]
+
+  - host: api.novita.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [novita_api_key]
+
+  - host: api.jina.ai
+    port: 443
+    path: /**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [jina_ai_api_key]
+
+# ---------------------------------------------------------------------------
+# Binaries
+# ---------------------------------------------------------------------------
+# omniroute runs inside this sandbox as the trusted proxy daemon; it needs access
+# to the OmniRoute gateway endpoint and all provider endpoints to forward requests.
+binaries:
+  - /usr/local/bin/omniroute
+  - /usr/local/bin/node

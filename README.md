@@ -325,6 +325,76 @@ openshell sandbox create \
 
 A JSON completion means the sandbox reached OmniRoute, OpenShell substituted the real OmniRoute key, and OmniRoute routed to one of the connected providers.
 
+### Two-sandbox architecture with two exclusive OpenShell providers
+
+Use two dedicated OpenShell providers, one per sandbox:
+
+| Sandbox | Provider | Purpose |
+|---------|----------|---------|
+| OmniRoute sandbox | `omniroute-all-providers` | Runs `omniroute --daemon` inside the sandbox. Holds all `{PROVIDER}_API_KEY` values and proxies agent requests to the correct provider endpoint. |
+| Agent sandbox (OpenCode, curl) | `omniroute-agent` | Runs the agent. Holds only `OMNIROUTE_API_KEY`. Can reach **only** the OmniRoute gateway endpoint; no provider keys and no direct provider-endpoint access. |
+
+This keeps the agent sandbox free of all provider keys and prevents any credential from being used against the wrong endpoint.
+
+#### 1. OmniRoute sandbox — `omniroute-all-providers` provider
+
+This sandbox runs the OmniRoute daemon. It binds every `{PROVIDER}_API_KEY` to its respective provider endpoint so each key is used only for its intended provider:
+
+```bash
+openshell profile lint -f openshell/omniroute-all-providers.yaml
+openshell profile import -f openshell/omniroute-all-providers.yaml
+openshell provider create --name omniroute-all-providers --type omniroute-all-providers --from-existing
+```
+
+```bash
+openshell sandbox create \
+  --name omniroute \
+  --from local/omniroute \
+  --provider omniroute-all-providers \
+  -- omniroute --daemon
+```
+
+The `omniroute-all-providers` profile enforces:
+- **OmniRoute gateway endpoint** (`host.openshell.internal:20128/v1`) reachable via `OMNIROUTE_API_KEY`.
+- **Each `{PROVIDER}_API_KEY` bound to its own endpoint.** `OPENROUTER_API_KEY` only reaches `openrouter.ai`, `NVIDIA_API_KEY` only NVIDIA endpoints, etc. (`enforcement: enforce`). OmniRoute, as the trusted proxy daemon in this sandbox, holds these keys and routes each request to the correct provider.
+- **`binaries` allowlist** restricts this sandbox to the `omniroute` proxy binary and `node`.
+
+#### 2. Agent sandbox — `omniroute-agent` provider
+
+This sandbox runs the agent (OpenCode, curl, ...). It holds **only** `OMNIROUTE_API_KEY` and can reach **only** the OmniRoute gateway endpoint. No provider keys enter this sandbox, and the agent cannot call any provider endpoint directly:
+
+```bash
+openshell profile lint -f openshell/omniroute-agent.yaml
+openshell profile import -f openshell/omniroute-agent.yaml
+openshell provider create --name omniroute-agent --type omniroute-agent --from-existing
+```
+
+```bash
+openshell sandbox create \
+  --name omniroute-agent \
+  --from ghcr.io/anomalyco/opencode:latest \
+  --provider omniroute-agent \
+  --env OMNIROUTE_API_KEY="${OMNIROUTE_API_KEY}" \
+  --env OPENAI_BASE_URL=http://host.openshell.internal:20128/v1 \
+  --detach \
+  -- sh -c 'sleep 86400'
+```
+
+The `omniroute-agent` profile enforces:
+- **Sandbox agent sees only `OMNIROUTE_API_KEY`.** Upstream `{PROVIDER}_API_KEY` values never enter this sandbox.
+- **`path: /v1/**`** limits the agent to OmniRoute's OpenAI-compatible API; every other host (including all provider endpoints) is unreachable from the agent.
+- **`enforcement: enforce`** blocks any request outside the allowed endpoint.
+- **`binaries` allowlist** restricts agent binaries (`opencode`, `node`, `curl`) to the OmniRoute gateway endpoint.
+
+#### Profile files
+
+The two profiles live in `openshell/`:
+
+- `openshell/omniroute-all-providers.yaml` — for the OmniRoute daemon sandbox.
+- `openshell/omniroute-agent.yaml` — for the agent sandbox.
+
+Each provider is exclusive to its sandbox; never share a provider between the omniroute sandbox and the agent sandbox.
+
 ### Run OpenCode through OmniRoute
 
 Save this OpenCode config as `opencode.json`:

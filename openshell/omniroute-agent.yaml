@@ -1,0 +1,50 @@
+id: omniroute-agent
+display_name: OmniRoute Agent (sandbox)
+description: Agent sandbox (OpenCode, curl, ...) that reaches ONLY the OmniRoute gateway via OMNIROUTE_API_KEY. No provider keys enter this sandbox.
+category: inference
+inference_capable: true
+
+# ---------------------------------------------------------------------------
+# Credentials
+# ---------------------------------------------------------------------------
+# The agent sandbox holds ONLY OMNIROUTE_API_KEY, an opaque placeholder for the
+# OmniRoute gateway. Upstream {PROVIDER}_API_KEY values never enter this sandbox;
+# they are held by the omniroute-all-providers sandbox (OmniRoute daemon) which
+# routes each request to the correct provider endpoint.
+credentials:
+  - name: api_key
+    description: OmniRoute API key (sandbox-facing, opaque placeholder)
+    env_vars:
+      - OMNIROUTE_API_KEY
+    required: true
+    auth_style: bearer
+    header_name: authorization
+    query_param: ""
+
+discovery:
+  credentials: [api_key]
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+# The agent sandbox may reach ONLY OmniRoute's OpenAI-compatible API.
+# Every other host (including all provider endpoints) is unreachable from the
+# agent. enforcement: enforce blocks any request outside this endpoint.
+endpoints:
+  - host: host.openshell.internal
+    port: 20128
+    path: /v1/**
+    protocol: rest
+    access: read-write
+    enforcement: enforce
+    credentials: [api_key]
+
+# ---------------------------------------------------------------------------
+# Binaries
+# ---------------------------------------------------------------------------
+# Agent binaries (opencode, curl) may use only the OmniRoute gateway endpoint.
+binaries:
+  - /usr/local/bin/opencode
+  - /usr/local/bin/node
+  - /usr/bin/curl
+  - /usr/local/bin/curl
