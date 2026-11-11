@@ -43,11 +43,12 @@ endpoints:
 # Binaries
 # ---------------------------------------------------------------------------
 # Agent binaries (opencode, curl, claude) may use only the OmniRoute gateway
-# endpoint. Claude Code's `claude` binary (from ghcr.io/anthropics/claude-code)
-# is included so it can call OmniRoute; it cannot reach any provider endpoint.
+# endpoint. Claude Code's `claude` binary (from the user-built
+# <your-claude-code-image>, installed at /home/claude/.local/bin/claude) is
+# included so it can call OmniRoute; it cannot reach any provider endpoint.
 binaries:
   - /usr/local/bin/opencode
   - /usr/local/bin/node
-  - /usr/local/bin/claude
+  - /home/claude/.local/bin/claude
   - /usr/bin/curl
   - /usr/local/bin/curl
