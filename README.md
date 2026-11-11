@@ -146,18 +146,11 @@ A few variables are also read directly from OmniRoute's environment as fallbacks
 
 ## Configuration
 
-The image is configured entirely through environment variables. The table below lists the values baked into the `Dockerfile` plus the OmniRoute runtime settings that matter most in a container.
+The image is configured entirely through environment variables. The table below lists the values set in the `Dockerfile` plus the OmniRoute runtime settings that matter most in a container.
 
 | Variable | Default in image | Description |
 | --- | --- | --- |
 | `INITIAL_PASSWORD` | `q1w2e3` | Dashboard password applied on first boot. **Override it.** |
-| `OPENROUTER_API_KEY` | `fake` | Compatibility placeholder; add an OpenRouter connection via the dashboard or CLI. |
-| `OPENCODE_API_KEY` | `fake` | Placeholder provider key. |
-| `CLOUDFLARE_API_KEY` | `fake` | Placeholder provider key. |
-| `VERCEL_API_KEY` | `fake` | Placeholder provider key. |
-| `DEEPINFRA_API_KEY` | `fake` | Placeholder provider key. |
-| `SILICONFLOW_API_KEY` | `fake` | Placeholder provider key. |
-| `NOVITA_API_KEY` | `fake` | Placeholder provider key. |
 | `PORT` | `20128` | Dashboard and API port. |
 | `LIVE_WS_PORT` | `20129` | Live monitoring WebSocket port. |
 | `DATA_DIR` | `/home/node/.omniroute` | SQLite database, secrets, backups, and plugins. |
@@ -168,9 +161,9 @@ The image is configured entirely through environment variables. The table below 
 | `REQUIRE_API_KEY` | unset | Set to `true` to require an OmniRoute API key on `/v1/*`. Strongly recommended when publishing the port. |
 | `OMNIROUTE_SERVER_HOST` | `0.0.0.0` | Bind address for the server. Use `127.0.0.1` to keep it loopback-only. |
 
-Provider-specific variables for the other supported providers are documented in OmniRoute's [environment reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/ENVIRONMENT.md).
+A few provider variables are read directly from OmniRoute's environment as fallbacks: `NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, and `JINA_AI_API_KEY`/`JINA_API_KEY`. These are **not** baked into the image — set them at runtime via `docker run -e ...` (or an `--env-file`) when you want OmniRoute to use them. For predictable routing, add a provider connection with the CLI or dashboard rather than relying on the fallback; the connection is stored in the SQLite database, so the upstream key does not need to stay in the container environment after it is saved.
 
-The fake keys are compatibility placeholders, not credentials. In OmniRoute 3.8+, only `NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, and `JINA_AI_API_KEY`/`JINA_API_KEY` are read from the environment as provider fallbacks; the other baked-in `*_API_KEY` values do not create provider connections. Add connections through the dashboard or CLI (see [Provider credentials](#provider-credentials)), or override the fallback variables with real values via `docker run -e ...` (or an `--env-file`).
+Provider-specific variables for the other supported providers are documented in OmniRoute's [environment reference](https://github.com/diegosouzapw/OmniRoute/blob/main/docs/reference/ENVIRONMENT.md).
 
 ## Build options
 
@@ -267,7 +260,7 @@ OmniRoute :20128/v1
 OpenAI, Anthropic, NVIDIA NIM, Gemini, OpenRouter, ...
 ```
 
-Only an OmniRoute credential enters the sandbox, and OpenShell replaces it with an opaque placeholder. The real OmniRoute key and the upstream `*_API_KEY` values stay outside the sandbox: upstream keys live in OmniRoute's encrypted SQLite database, so the agent cannot read them and you do not need a separate OpenShell profile for every provider.
+Only an OmniRoute credential enters the sandbox, and OpenShell replaces it with an opaque placeholder. The real OmniRoute key and the upstream `*_API_KEY` values stay outside the sandbox: upstream keys are provided through OmniRoute's system environment (`NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `JINA_AI_API_KEY`/`JINA_API_KEY`), so the agent cannot read them and you do not need a separate OpenShell profile for every provider.
 
 ### Start OmniRoute for OpenShell
 
@@ -426,6 +419,10 @@ To clean up:
 openshell sandbox delete omniroute-smoke omniroute-agent
 ```
 
+### Credential security
+
+The sandbox agent never holds upstream provider keys. It only sees `OMNIROUTE_API_KEY` (an opaque placeholder managed by OpenShell) and reaches OmniRoute at `host.openshell.internal:20128/v1`. Upstream provider keys come through OmniRoute's system environment at startup (`NVIDIA_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `JINA_AI_API_KEY`/`JINA_API_KEY`) and are never stored in OmniRoute's database for this flow. Even if the sandbox is compromised, the attacker cannot extract upstream API keys.
+
 ### OpenShell troubleshooting
 
 | Symptom | Fix |
@@ -536,7 +533,7 @@ docker stop omniroute
 ## Security notes
 
 - **Change `INITIAL_PASSWORD`.** The baked-in `q1w2e3` value is a weak placeholder. Use a strong password (8+ characters) and never expose the dashboard to the internet without TLS and a reverse proxy.
-- **The fake provider keys are not credentials.** They are placeholders and will fail against real providers. Supply real keys at runtime, or add provider connections through the dashboard/CLI.
+- **The fake provider keys are not credentials.** They are placeholders and will fail against real providers. Supply real keys at runtime via `docker run -e ...` (or an `--env-file`), or add provider connections through the dashboard/CLI.
 - **Protect `/v1/*`.** OmniRoute is local-first, but this container publishes port `20128` on all interfaces. Set `REQUIRE_API_KEY=true` and create an API key, and/or bind the port to loopback (`-p 127.0.0.1:20128:20128`) so only local clients can spend your provider quota. If you use OpenShell, publish the port on an interface the sandbox can reach and keep `REQUIRE_API_KEY=true`.
 - **Keep secrets out of images.** Do not bake real keys into the `Dockerfile` or commit them to a `.env` file. Use runtime environment variables, `--env-file`, or your orchestrator's secret store.
 - **The container runs as `node` (UID 1000), not root.** Keep the data volume owned by that UID.

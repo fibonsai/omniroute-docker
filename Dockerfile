@@ -93,14 +93,7 @@ WORKDIR /workspace
 
 ENV NODE_ENV=production \
     DATA_DIR=/home/node/.omniroute \
-    INITIAL_PASSWORD=q1w2e3 \
-    OPENROUTER_API_KEY="fake" \
-    OPENCODE_API_KEY="fake" \
-    CLOUDFLARE_API_KEY="fake" \
-    VERCEL_API_KEY="fake" \
-    DEEPINFRA_API_KEY="fake" \
-    SILICONFLOW_API_KEY="fake" \
-    NOVITA_API_KEY="fake"
+    INITIAL_PASSWORD=q1w2e3
 
 EXPOSE 20128 20129
 
