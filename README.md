@@ -452,12 +452,12 @@ openshell sandbox exec -n omniroute-agent --workdir /workspace -- \
 
 ### Run Claude Code through OmniRoute
 
-Claude Code can point at any OpenAI-compatible endpoint via `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`. Anthropic does not publish a public, pullable `claude-code` Docker image (it is distributed as a dev-container feature on `ghcr.io/anthropics` that requires authentication), so build your own image with the Claude Code CLI installed and reference it as `<your-claude-code-image>`. Run it inside an `omniroute-agent` sandbox so it reaches OmniRoute (and therefore every connected provider) without holding any upstream `{PROVIDER}_API_KEY`:
+Claude Code can point at any OpenAI-compatible endpoint via `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`. Run it inside an `omniroute-agent` sandbox so it reaches OmniRoute (and therefore every connected provider) without holding any upstream `{PROVIDER}_API_KEY`:
 
 ```bash
 openshell sandbox create \
   --name claude-code-agent \
-  --from <your-claude-code-image> \
+  --from docker.io/anthropics/claude-code:latest \
   --provider omniroute-agent \
   --env OMNIROUTE_API_KEY="${OMNIROUTE_API_KEY}" \
   --env ANTHROPIC_BASE_URL=http://host.openshell.internal:20128/v1 \
