@@ -29,6 +29,7 @@ POLICY="openshell/policy.yaml"
 SANDBOX_NAME="omniroute"
 OMNIROUTE_IMAGE="localhost/fibonsai/omniroute:latest"  # build your OmniRoute image first (see README)
 OMNIROUTE_PORT="20128"
+DRIVER="`grep compute_driver ~/.config/openshell/gateway.toml | cut -d'"' -f2`"
 
 openshell sandbox get $SANDBOX_NAME > /dev/null 2>&1 && openshell sandbox delete $SANDBOX_NAME
 
@@ -66,25 +67,33 @@ openshell profile import -f "$PROFILE" >/dev/null
 log "Creating provider $PROFILE ..."
 openshell provider create --name $PROFILE_NAME --type $PROFILE_NAME
 
+log "Using $DRIVER"
+
+log "Creating omniroute-data volume (if necessary)"
+$DRIVER volume exists omniroute-data && echo "omniroute-data volume already exists" || \
+$DRIVER volume create \
+  --label openshell.ai/sandbox-attachable=true \
+  --label openshell.ai/sandbox-attachable-workspace=default \
+  omniroute-data
+
 # ---------------------------------------------------------------------------
-# Create (or reuse) the OmniRoute sandbox
+# Create the OmniRoute sandbox
 # ---------------------------------------------------------------------------
-if openshell sandbox inspect "$SANDBOX_NAME" >/dev/null 2>&1; then
-  log "Sandbox '$SANDBOX_NAME' already exists; reusing it."
-else
-  log "Creating sandbox '$SANDBOX_NAME' from $OMNIROUTE_IMAGE ..."
-  openshell sandbox create \
+log "Creating sandbox '$SANDBOX_NAME' from $OMNIROUTE_IMAGE ..."
+openshell sandbox create \
     --name "$SANDBOX_NAME" \
     --from "$OMNIROUTE_IMAGE" \
     --provider "$PROFILE_NAME" \
     --policy "$POLICY" \
     --expose 20128 \
+    --driver-config-json '{"'$DRIVER'":{"mounts":[{"type":"volume","source":"omniroute-data","target":"/home/node/.omniroute","read_only":false}]}}' \
     --detach \
     -- omniroute --no-open --log --no-recovery
-  sleep 20
-  openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute setup --non-interactive --password "$INITIAL_PASSWORD"
-  OMNIROUTE_API_KEY="`openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute --quiet --output json api api-keys post-api-keys --body '{"name": "headless-cli-key"}' 2>/dev/null |grep '"key"' | cut -d'"' -f4`"
-fi
+
+sleep 20
+
+openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute setup --non-interactive --password "$INITIAL_PASSWORD"
+OMNIROUTE_API_KEY="`openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute --quiet --output json api api-keys post-api-keys --body '{"name": "headless-cli-key"}' 2>/dev/null |grep '"key"' | cut -d'"' -f4`"
 
 # ---------------------------------------------------------------------------
 # Wait for OmniRoute to be reachable
