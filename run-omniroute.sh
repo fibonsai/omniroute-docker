@@ -30,8 +30,9 @@ SANDBOX_NAME="omniroute"
 OMNIROUTE_IMAGE="localhost/fibonsai/omniroute:latest"  # build your OmniRoute image first (see README)
 OMNIROUTE_PORT="20128"
 DRIVER="`grep compute_driver ~/.config/openshell/gateway.toml | cut -d'"' -f2`"
+RESET_ALL_KEYS="${RESET_ALL_KEYS:-true}"
 
-openshell sandbox get $SANDBOX_NAME > /dev/null 2>&1 && openshell sandbox delete $SANDBOX_NAME
+openshell sandbox get $SANDBOX_NAME > /dev/null 2>&1 && openshell sandbox delete $SANDBOX_NAME && sleep 5
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -90,11 +91,6 @@ openshell sandbox create \
     --detach \
     -- omniroute --no-open --log --no-recovery
 
-sleep 20
-
-openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute setup --non-interactive --password "$INITIAL_PASSWORD"
-OMNIROUTE_API_KEY="`openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute --quiet --output json api api-keys post-api-keys --body '{"name": "headless-cli-key"}' 2>/dev/null |grep '"key"' | cut -d'"' -f4`"
-
 # ---------------------------------------------------------------------------
 # Wait for OmniRoute to be reachable
 # ---------------------------------------------------------------------------
@@ -111,9 +107,20 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
+log "Updating dashboard password"
+openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute setup --non-interactive --password "$INITIAL_PASSWORD" 2> /dev/null | grep -v 'Loaded '
+
+if [ "x$RESET_ALL_KEYS" == "xtrue" ]; then
+  log "Reset all old keys"
+  openshell sandbox exec -n "$SANDBOX_NAME" -- sh -c "omniroute --quiet --output json api api-keys get-api-keys 2> /dev/null | grep -v 'Loaded ' | grep '\"id\":'| cut -d'\"' -f4 | while read id; do omniroute --quiet api api-keys delete-api-keys-id- --id \$id 2> /dev/null | grep -v 'Loaded ' | sed \"s/.*/key \$id removed/\"; done | uniq"
+fi
+
+OMNIROUTE_API_KEY="`openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute --quiet --output json api api-keys post-api-keys --body '{"name": "default"}' 2>/dev/null |grep '"key"' | cut -d'"' -f4`"
+echo -n "OMNIROUTE_API_KEY=${OMNIROUTE_API_KEY}" > .env 
+
 LOCAL_SERVICE=`openshell service list -o json | jq -r '.services[] | select (.sandbox = "'$SANDBOX_NAME'")| .url'`
 
 log "OmniRoute sandbox '$SANDBOX_NAME' is up using profile inference-providers."
-log "Agents connect with OMNIROUTE_API_KEY='${OMNIROUTE_API_KEY}' to 0.0.0.0:${OMNIROUTE_PORT}/v1"
+log "OmniRoute OMNIROUTE_API_KEY is saved in '.env' file (always refreshed when reexecuting this script)"
 log "Local access: ${LOCAL_SERVICE}/v1"
 log "Upstream {PROVIDER}_API_KEY values are held only by this sandbox (see $PROFILE)."

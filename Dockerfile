@@ -76,7 +76,7 @@ RUN if [ "$REMOVE_TRANSLATED_DOCS" = "true" ]; then \
 # ---------------------------------------------------------------------------
 FROM node:lts-alpine
 
-RUN apk add --no-cache ca-certificates curl libc6-compat tzdata
+RUN apk add --no-cache ca-certificates curl libc6-compat tzdata jq
 
 # Copy only the installed application. Build tools, npm cache, and install
 # metadata from the builder stage never reach this image.
