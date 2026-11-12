@@ -212,8 +212,8 @@ volumes:
 
 ```text
  Agent sandbox                              OmniRoute sandbox
- (OpenCode, Claude Code, curl)              (omniroute --no-open --log --no-recovery)
- ───────────────────────────                ─────────────────────────────────
+ (OpenCode, Claude Code, HermesClaw)        (omniroute --no-open --log --no-recovery)
+ ───────────────────────────────────        ─────────────────────────────────
  OMNIROUTE_API_KEY only          ─────────▶ :20128/v1
  (opaque placeholder)                       provider credentials bound to their endpoints
                                                     │
@@ -225,7 +225,7 @@ volumes:
 | Sandbox | Provider profile | Credentials | Purpose |
 | --- | --- | --- | --- |
 | `omniroute` | `inference-providers` | Endpoint-bound `{PROVIDER}_API_KEY` credentials | Runs the OmniRoute daemon and forwards requests to the correct provider endpoint. |
-| Agent (OpenCode, Claude Code, curl) | `omniroute-agent` | Only `OMNIROUTE_API_KEY` | Runs the agent. Can reach only OmniRoute's `/v1/**`; no provider credentials and no direct provider access. |
+| Agent (OpenCode, Claude Code, HermesClaw, curl) | `omniroute-agent` | Only `OMNIROUTE_API_KEY` | Runs the agent. Can reach only OmniRoute's `/v1/**`; no provider credentials and no direct provider access. |
 
 Never attach the `inference-providers` provider to an agent sandbox, and never attach `omniroute-agent` to the OmniRoute sandbox.
 
@@ -383,7 +383,7 @@ export OMNIROUTE_ORIGIN=http://host.docker.internal:20128
 export OMNIROUTE_BASE_URL="${OMNIROUTE_ORIGIN}/v1"
 ```
 
-OpenAI-compatible clients (curl, OpenCode, Hermes) use `OMNIROUTE_BASE_URL`; Claude Code uses `OMNIROUTE_ORIGIN` without `/v1`. The sandbox examples below pass these values in with `--env`.
+OpenAI-compatible clients (curl, OpenCode, HermesClaw) use `OMNIROUTE_BASE_URL`; Claude Code uses `OMNIROUTE_ORIGIN` without `/v1`. The sandbox examples below pass these values in with `--env`.
 
 Smoke-test with curl:
 
@@ -481,26 +481,35 @@ openshell sandbox exec -n claude-code-agent --workdir /workspace -- \
 
 Claude Code authenticates to OmniRoute with `OMNIROUTE_API_KEY`, and OmniRoute routes to the configured provider. The sandbox never sees `NVIDIA_API_KEY`, `GEMINI_API_KEY`, or any other upstream key.
 
-### Run Hermes Gateway through OmniRoute
+### Run Hermes through OmniRoute
 
-Hermes Agent (NousResearch) runs in an OpenShell sandbox via the `hermesclaw` gateway. There is no official NousResearch/NVIDIA image, so build your own and use it as `<your-hermes-image>`:
+To run Hermes Agent (NousResearch) inside OpenShell, use [HermesClaw](https://github.com/TheAiSingularity/hermesclaw) instead of building your own Hermes image. It ships an OpenShell-ready image, so you can connect it to the OmniRoute agent provider like any other agent sandbox.
+
+Add `/usr/local/bin/hermes` to `binaries` in `openshell/omniroute-agent.yaml` so Hermes may call OmniRoute, then create the provider and sandbox (delete an existing `omniroute-agent` provider first, as described in [Connect an agent sandbox](#connect-an-agent-sandbox)):
 
 ```bash
+export OMNIROUTE_API_KEY="$(sed -n 's/^OMNIROUTE_API_KEY=//p' .env)"   # written by run-omniroute.sh
+
+openshell profile lint -f openshell/omniroute-agent.yaml
+openshell profile import -f openshell/omniroute-agent.yaml
+openshell provider create --name omniroute-agent --type omniroute-agent --from-existing
+
 openshell sandbox create \
-  --name hermes-agent \
-  --from <your-hermes-image> \
+  --name hermesclaw-1 \
+  --from ghcr.io/theaisingularity/hermesclaw:latest \
   --provider omniroute-agent \
-  --env OMNIROUTE_API_KEY="${OMNIROUTE_API_KEY}" \
-  --env HERMES_GATEWAY_URL="${OMNIROUTE_BASE_URL}" \
-  --env HERMES_API_KEY="${OMNIROUTE_API_KEY}" \
+  --env OMNIROUTE_BASE_URL="$OMNIROUTE_BASE_URL" \
   --detach \
   -- sh -c 'sleep 86400'
 
-openshell sandbox exec -n hermes-agent --workdir /workspace -- \
-  hermesclaw chat "Summarize the files in this workspace."
+openshell sandbox exec -n hermesclaw-1 --workdir /sandbox -- \
+  sh -c 'hermes config set model.provider custom
+         hermes config set model.base_url "$OMNIROUTE_BASE_URL"
+         hermes config set model.key_env OMNIROUTE_API_KEY
+         hermes chat -q "Summarize the files in this workspace."'
 ```
 
-The Hermes sandbox holds only `OMNIROUTE_API_KEY`; OmniRoute forwards requests to the destination provider using the credentials bound to the OmniRoute sandbox.
+Hermes reads `OMNIROUTE_BASE_URL` from the sandbox environment and authenticates with the `OMNIROUTE_API_KEY` placeholder resolved by OpenShell; upstream provider keys never enter the HermesClaw sandbox. See the [HermesClaw README](https://github.com/TheAiSingularity/hermesclaw) for its CLI, policy presets, and Docker mode.
 
 ### Clean up
 
