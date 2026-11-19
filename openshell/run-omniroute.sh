@@ -24,8 +24,8 @@ set -euo pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 INITIAL_PASSWORD="${INITIAL_PASSWORD:-password}"
-PROFILE="openshell/inference-providers.yaml"
-POLICY="openshell/policy.yaml"
+PROFILE="inference-providers.yaml"
+POLICY="policy.yaml"
 SANDBOX_NAME="omniroute"
 OMNIROUTE_IMAGE="localhost/fibonsai/omniroute:latest"  # build your OmniRoute image first (see README)
 OMNIROUTE_PORT="20128"
