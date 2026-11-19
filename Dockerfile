@@ -18,7 +18,7 @@ ARG OMNIROUTE_VERSION=latest
 # LLMLingua, js-tiktoken, sqlite-vec, keytar, wreq-js). They are omitted by
 # default because most container deployments do not need local embeddings or
 # OS keychain support. Set to true for the full feature set.
-ARG INSTALL_OPTIONAL_DEPS=false
+ARG INSTALL_OPTIONAL_DEPS=true
 
 # Remove translated documentation from the runtime tree; English docs stay.
 ARG REMOVE_TRANSLATED_DOCS=true
