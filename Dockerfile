@@ -95,4 +95,7 @@ ENV NODE_ENV=production \
     DATA_DIR=/home/node/.omniroute \
     INITIAL_PASSWORD=q1w2e3
 
+RUN omniroute doctor
+RUN for p in `omniroute providers available --category api-key --json 2> /dev/null | grep -v 'Loaded' | jq -rc '.providers[].id'|sort`;do echo "[ -n \"\$$(echo $p | tr a-z A-Z | sed 's/-/_/g')_API_KEY\" ] && omniroute setup --non-interactive --add-provider --provider $p --api-key "\$$(echo $p | tr a-z A-Z | sed 's/-/_/g')_API_KEY" --test-provider || echo \"$p not defined\""; done | tee /home/node/.omniroute/add-providers.sh; chmod +x /home/node/.omniroute/add-providers.sh
+
 EXPOSE 20128 20129
