@@ -14,6 +14,7 @@ filesystem_policy:
     - /tmp
     - /dev/null
     - /home/node/.omniroute
+    - /app/data
 landlock:
   compatibility: best_effort
 
