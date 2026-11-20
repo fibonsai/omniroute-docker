@@ -24,10 +24,9 @@ set -euo pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 INITIAL_PASSWORD="${INITIAL_PASSWORD:-password}"
-PROFILE="inference-providers.yaml"
 POLICY="policy.yaml"
 SANDBOX_NAME="omniroute"
-OMNIROUTE_IMAGE="localhost/fibonsai/omniroute:latest"  # build your OmniRoute image first (see README)
+OMNIROUTE_IMAGE="docker.io/fibonsai/omniroute:latest"  # build your OmniRoute image first (see README)
 OMNIROUTE_PORT="20128"
 DRIVER="`grep compute_driver ~/.config/openshell/gateway.toml | cut -d'"' -f2`"
 RESET_ALL_KEYS="${RESET_ALL_KEYS:-true}"
@@ -48,25 +47,23 @@ require_cmd() {
 # Pre-flight checks
 # ---------------------------------------------------------------------------
 require_cmd openshell
+require_cmd git
+require_cmd jq
 
-[[ -f "$PROFILE" ]] || die "profile not found: $PWD/$PROFILE"
+# ---------------------------------------------------------------------------
+# Providers/Profiles
+# ---------------------------------------------------------------------------
 
-PROFILE_NAME=`grep '^id:' "$PROFILE"| sed 's/.*: //'`
-if [ "x`openshell provider list| grep $PROFILE_NAME`" != "x" ]; then
-   openshell provider delete $PROFILE_NAME
-fi
-if [ "x`openshell profile list| grep $PROFILE_NAME`" != "x" ]; then
-   openshell profile delete $PROFILE_NAME
-fi
+curl -LsS https://codeload.github.com/tuxmonteiro/openshell-stuffs/tar.gz/refs/heads/main | tar xz
+openshell-stuffs-main/scripts/cleanup.sh --execute
+openshell-stuffs-main/scripts/import_profiles.sh --execute
+openshell-stuffs-main/scripts/create_providers.sh --execute
 
-log "Linting profile $PROFILE ..."
-openshell profile lint -f "$PROFILE" >/dev/null
+PROVIDERS="$(openshell provider list -o json | jq -r '.providers[] | select(.name|startswith("provider-")) | "--provider \(.name)"')"
 
-log "Importing profile $PROFILE ..."
-openshell profile import -f "$PROFILE" >/dev/null
-
-log "Creating provider $PROFILE ..."
-openshell provider create --name $PROFILE_NAME --type $PROFILE_NAME
+# ---------------------------------------------------------------------------
+# Volume
+# ---------------------------------------------------------------------------
 
 log "Using $DRIVER"
 
@@ -84,12 +81,35 @@ log "Creating sandbox '$SANDBOX_NAME' from $OMNIROUTE_IMAGE ..."
 openshell sandbox create \
     --name "$SANDBOX_NAME" \
     --from "$OMNIROUTE_IMAGE" \
-    --provider "$PROFILE_NAME" \
+    $PROVIDERS \
     --policy "$POLICY" \
-    --expose 20128 \
-    --driver-config-json '{"'$DRIVER'":{"mounts":[{"type":"volume","source":"omniroute-data","target":"/home/node/.omniroute","read_only":false}]}}' \
+    --expose $OMNIROUTE_PORT \
+    --env NODE_ENV=production \
+    --env PORT=$OMNIROUTE_PORT \
+    --env DASHBOARD_PORT=$OMNIROUTE_PORT \
+    --env API_PORT=20129 \
+    --env LIVE_WS_PORT=20132 \
+    --env LIVE_WS_HOST=0.0.0.0 \
+    --env LIVE_WS_ALLOWED_ORIGINS="*" \
+    --env API_HOST=0.0.0.0 \
+    --env HOSTNAME=0.0.0.0 \
+    --env REQUIRE_API_KEY=true \
+    --env OMNIROUTE_SERVER_HOST=0.0.0.0 \
+    --env DATA_DIR=/app/data \
+    --env REDIS_URL=redis://host.docker.internal:6379 \
+    --driver-config-json '{"'$DRIVER'":{"mounts":[{"type":"volume","source":"omniroute-data","target":"/app/data","read_only":false}]}}' \
     --detach \
-    -- omniroute --no-open --log --no-recovery
+        -- /bin/sh -c '
+        omniroute setup --non-interactive
+        echo "Starting config omniroute providers"
+        /home/node/.omniroute/add-providers.sh
+        omniroute doctor
+        omniroute env list
+        omniroute --no-open --log --no-recovery
+        '
+
+openshell service expose "$SANDBOX_NAME" 20129 api
+openshell service expose "$SANDBOX_NAME" 20132 ws
 
 # ---------------------------------------------------------------------------
 # Wait for OmniRoute to be reachable
@@ -122,5 +142,4 @@ LOCAL_SERVICE=`openshell service list -o json | jq -r '.services[] | select (.sa
 
 log "OmniRoute sandbox '$SANDBOX_NAME' is up using profile inference-providers."
 log "OmniRoute OMNIROUTE_API_KEY is saved in '.env' file (always refreshed when reexecuting this script)"
-log "Local access: ${LOCAL_SERVICE}/v1"
-log "Upstream {PROVIDER}_API_KEY values are held only by this sandbox (see $PROFILE)."
+log "Local access: ${LOCAL_SERVICE}"
