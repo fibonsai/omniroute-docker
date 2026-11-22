@@ -30,6 +30,7 @@ OMNIROUTE_IMAGE="docker.io/fibonsai/omniroute:latest"  # build your OmniRoute im
 OMNIROUTE_PORT="20128"
 DRIVER="`grep compute_driver ~/.config/openshell/gateway.toml | cut -d'"' -f2`"
 RESET_ALL_KEYS="${RESET_ALL_KEYS:-true}"
+HOST_IP=$(ip route show to default | sed 's/.*src \(.*\) metric.*/\1/')
 
 openshell sandbox get $SANDBOX_NAME > /dev/null 2>&1 && openshell sandbox delete $SANDBOX_NAME && sleep 5
 
@@ -98,7 +99,7 @@ openshell sandbox create \
     --env REQUIRE_API_KEY=true \
     --env OMNIROUTE_SERVER_HOST=0.0.0.0 \
     --env DATA_DIR=/app/data \
-    --env REDIS_URL=redis://host.docker.internal:6379 \
+    --env REDIS_URL=redis://$HOST_IP:6379 \
     --driver-config-json '{"'$DRIVER'":{"mounts":[{"type":"volume","source":"omniroute-data","target":"/app/data","read_only":false}]}}' \
     --detach \
     -- omniroute --no-open --log --no-recovery
