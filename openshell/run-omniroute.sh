@@ -54,6 +54,7 @@ require_cmd jq
 # Providers/Profiles
 # ---------------------------------------------------------------------------
 
+rm -rf openshell-stuffs-main || true
 curl -LsS https://codeload.github.com/tuxmonteiro/openshell-stuffs/tar.gz/refs/heads/main | tar xz
 openshell-stuffs-main/scripts/cleanup.sh --execute
 openshell-stuffs-main/scripts/import_profiles.sh --execute
@@ -84,6 +85,7 @@ openshell sandbox create \
     $PROVIDERS \
     --policy "$POLICY" \
     --expose $OMNIROUTE_PORT \
+    --no-credential-warnings \
     --env NODE_ENV=production \
     --env PORT=$OMNIROUTE_PORT \
     --env DASHBOARD_PORT=$OMNIROUTE_PORT \
@@ -99,14 +101,7 @@ openshell sandbox create \
     --env REDIS_URL=redis://host.docker.internal:6379 \
     --driver-config-json '{"'$DRIVER'":{"mounts":[{"type":"volume","source":"omniroute-data","target":"/app/data","read_only":false}]}}' \
     --detach \
-        -- /bin/sh -c '
-        omniroute setup --non-interactive
-        echo "Starting config omniroute providers"
-        /home/node/.omniroute/add-providers.sh
-        omniroute doctor
-        omniroute env list
-        omniroute --no-open --log --no-recovery
-        '
+    -- omniroute --no-open --log --no-recovery
 
 openshell service expose "$SANDBOX_NAME" 20129 api
 openshell service expose "$SANDBOX_NAME" 20132 ws
@@ -129,6 +124,8 @@ done
 
 log "Updating dashboard password"
 openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute setup --non-interactive --password "$INITIAL_PASSWORD" 2> /dev/null | grep -v 'Loaded '
+openshell sandbox exec -n "$SANDBOX_NAME" -- /home/node/.omniroute/add-providers.sh 2> /dev/null | grep 'Provider configured:'
+openshell sandbox exec -n "$SANDBOX_NAME" -- sh -c 'omniroute doctor;omniroute env list'
 
 if [ "x$RESET_ALL_KEYS" == "xtrue" ]; then
   log "Reset all old keys"
@@ -136,7 +133,7 @@ if [ "x$RESET_ALL_KEYS" == "xtrue" ]; then
 fi
 
 OMNIROUTE_API_KEY="`openshell sandbox exec -n "$SANDBOX_NAME" -- omniroute --quiet --output json api api-keys post-api-keys --body '{"name": "default"}' 2>/dev/null |grep '"key"' | cut -d'"' -f4`"
-echo -n "OMNIROUTE_API_KEY=${OMNIROUTE_API_KEY}" > .env 
+echo -n "OMNIROUTE_API_KEY=${OMNIROUTE_API_KEY}" > .env
 
 LOCAL_SERVICE=`openshell service list -o json | jq -r '.services[] | select (.sandbox = "'$SANDBOX_NAME'")| .url'`
 
