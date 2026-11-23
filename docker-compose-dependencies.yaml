@@ -1,0 +1,60 @@
+services:
+  redis:
+    image: docker.io/library/redis:8.6.5-alpine
+    container_name: redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    network_mode: host
+
+  qdrant:
+    container_name: qdrant
+    image: docker.io/qdrant/qdrant:latest
+    #ports:
+    #  - "6333:6333"
+    #  - "6334:6334"
+    volumes:
+      - qdrant:/qdrant/storage
+    environment:
+      QDRANT__TELEMETRY_DISABLED: true
+    network_mode: host
+
+  local-llm:
+    container_name: local-llm
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda13-b11459
+    restart: unless-stopped
+    devices:
+      - nvidia.com/gpu=all
+    security_opt:
+      - label=disable
+    volumes:
+      - /opt/models/bolt-models:/models:ro
+    command: >
+      -m /models/Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf
+      --spec-draft-model /models/Nemotron-3.5-Bolt-E4B-DFlash-BF16.gguf
+      --spec-type draft-dflash
+      --spec-draft-n-max 7
+      --spec-draft-ngl 999
+      --alias gemma4
+      --host 0.0.0.0
+      --port 18000
+      -c 65536
+      -ngl 999
+      --jinja
+      --temp 0.0
+      --top-p 0.95
+      --chat-template-kwargs '{"enable_thinking":true}'
+      --reasoning on
+    #ports:
+    #  - "18080:18080"
+    network_mode: host
+
+volumes:
+  redis-data:
+  qdrant:
