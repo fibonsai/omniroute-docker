@@ -57,7 +57,7 @@ require_cmd jq
 
 rm -rf openshell-stuffs-main || true
 curl -LsS https://codeload.github.com/tuxmonteiro/openshell-stuffs/tar.gz/refs/heads/main | tar xz
-sed -i "s/{{HOST}}/$HOST_IP/" openshell-stuffs-main/profiles/*
+sed -i "s/{{HOST}}/$HOST_IP.nip.io/" openshell-stuffs-main/profiles/*
 openshell-stuffs-main/scripts/cleanup.sh --execute
 openshell-stuffs-main/scripts/import_profiles.sh --execute
 openshell-stuffs-main/scripts/create_providers.sh --execute
